@@ -28,8 +28,15 @@ def load_data():
 def build_narrative(kpi_sel, peak_7d_sel, peak_48h_sel, daily_usage_sel, new_users_sel, selected_products):
     """基于当前筛选数据生成叙事性解读与建议。"""
     total_users = int(kpi_sel["value"].sum())
+    observation_period = ""
+    all_dates = []
+    for df in [peak_7d_sel, daily_usage_sel, new_users_sel]:
+        if not df.empty and "date" in df.columns:
+            all_dates.extend(df["date"].astype(str).tolist())
+    if all_dates:
+        observation_period = f"{min(all_dates)} 至 {max(all_dates)}"
     if total_users <= 0:
-        return {"summary": "当前筛选下暂无用户量数据。", "findings": [], "suggestions": ["请检查数据或调整产品线筛选。"]}
+        return {"summary": "当前筛选下暂无用户量数据。", "findings": [], "suggestions": ["请检查数据或调整产品线筛选。"], "observation_period": observation_period}
     product_breakdown = []
     for p in selected_products:
         v = kpi_sel[kpi_sel["product_line"] == p]["value"].sum()
@@ -41,12 +48,14 @@ def build_narrative(kpi_sel, peak_7d_sel, peak_48h_sel, daily_usage_sel, new_use
         summary_parts.append("，其中 " + "、".join(product_breakdown) + "。")
     else:
         summary_parts.append("。")
+    if observation_period:
+        summary_parts.append(f"**观测期**：{observation_period}。")
     if not peak_7d_sel.empty:
         agg7 = peak_7d_sel.groupby("date", as_index=False)["task_cnt"].sum()
         if not agg7.empty:
             peak_date = agg7.loc[agg7["task_cnt"].idxmax(), "date"]
             peak_val = int(agg7["task_cnt"].max())
-            summary_parts.append(f"**近7天功能使用高峰**出现在 {peak_date}（当日任务量 {peak_val}），可作为运营或推广的参考节奏。")
+            summary_parts.append(f"**近7天功能使用高峰**出现在 {peak_date}（当日任务量 {peak_val}）。")
     if not daily_usage_sel.empty:
         max_dau = int(daily_usage_sel["dau"].max())
         max_dau_date = daily_usage_sel.loc[daily_usage_sel["dau"].idxmax(), "date"]
@@ -62,25 +71,25 @@ def build_narrative(kpi_sel, peak_7d_sel, peak_48h_sel, daily_usage_sel, new_use
         b = kpi_sel[kpi_sel["product_line"] == selected_products[1]]["value"].sum()
         if a + b > 0:
             lead = selected_products[0] if a >= b else selected_products[1]
-            findings.append(f"**产品线对比**：{lead} 在总用户量上领先，说明当前用户结构向该产品线倾斜，可据此分配资源或做跨线拉新。")
+            findings.append(f"**产品线对比**：{lead} 用户量更多，可优先给该产品线配资源，或从该线往另一条线导流拉新。")
     if not daily_usage_sel.empty:
         dau_mean = daily_usage_sel.groupby("date")["dau"].sum().mean()
-        findings.append(f"**活跃度**：观测期日均活跃约 {dau_mean:.1f} 人，日活波动反映使用节奏不稳定，适合配合活动或提醒提升留存。")
+        findings.append(f"**活跃度**：观测期内日均活跃约 {dau_mean:.1f} 人，日活有高有低，可通过活动、提醒提升留存。")
     if not new_users_sel.empty:
         new_by_date = new_users_sel.groupby("date")["new_ai_users"].sum()
         zero_days = (new_by_date == 0).sum()
         if zero_days > 0:
-            findings.append(f"**新增节奏**：{int(zero_days)} 天无新增用户，说明拉新依赖少数关键日期或渠道，建议持续曝光与转化漏斗分析。")
+            findings.append(f"**新增节奏**：{int(zero_days)} 天没有新增用户，拉新多集中在少数几天或渠道，建议看下曝光和转化漏斗。")
     if not peak_48h_sel.empty and peak_48h_sel["task_cnt"].sum() > 0:
         agg48 = peak_48h_sel.groupby("hour_slot")["task_cnt"].sum()
         busy_slot = agg48.idxmax()
-        findings.append(f"**48 小时高峰时段**：使用集中在 {busy_slot} 附近，可在此时段保证服务稳定性或推送轻量触达。")
+        findings.append(f"**48 小时高峰**：使用多集中在 {busy_slot} 左右，可在此时间段保证服务稳定或做轻量推送。")
     suggestions = [
-        "结合「近7天功能使用」优化功能优先级与资源投入；对使用偏低的日期可做定向召回。",
-        "用「每日使用次数」与「日活」评估留存与习惯养成，对下滑周期设计挽留策略。",
-        "将「每日新增用户」与推广动作对齐，沉淀可复用的拉新路径。",
+        "**近 7 天功能使用**：看哪几天、哪些功能用得多，据此排功能优先级和资源；使用偏低的日期可做定向召回（推送、活动）。",
+        "**每日使用与日活**：用趋势判断用户是否养成习惯；出现明显下滑时，可设计挽留动作（提醒、福利等）。",
+        "**每日新增用户**：和实际推广动作对照，找出拉新效果好的渠道和时段，沉淀成可复用的拉新流程。",
     ]
-    return {"summary": summary, "findings": findings, "suggestions": suggestions}
+    return {"summary": summary, "findings": findings, "suggestions": suggestions, "observation_period": observation_period}
 
 
 def main():

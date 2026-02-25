@@ -44,8 +44,9 @@ def generate_mock_dates_7d() -> list[str]:
 
 
 def generate_mock_dates_daily() -> list[str]:
-    base = datetime(2026, 2, 2)
-    return [(base + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(25)]
+    """与原数据时间一致：2026-01-31 至 2026-02-26"""
+    base = datetime(2026, 1, 31)
+    return [(base + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(27)]
 
 
 def generate_mock_data() -> dict[str, pd.DataFrame]:
