@@ -148,6 +148,10 @@ def main() -> None:
     data["daily_usage"].to_csv(PROCESSED_DIR / "daily_usage.csv", index=False, encoding="utf-8")
     data["new_users"].to_csv(PROCESSED_DIR / "new_users.csv", index=False, encoding="utf-8")
 
+    # 报告时间范围（与 PDF 中 start_time / end_time 一致）
+    obs_df = pd.DataFrame([{"start_date": "2026-01-31", "end_date": "2026-02-26"}])
+    obs_df.to_csv(PROCESSED_DIR / "observation_period.csv", index=False, encoding="utf-8")
+
     print(f"Processed data written to {PROCESSED_DIR}")
 
 

@@ -118,12 +118,23 @@ def main():
 
     # ----- 核心结论（叙事摘要）-----
     narrative = build_narrative(kpi_sel, peak_7d_sel, peak_48h_sel, daily_usage_sel, new_users_sel, selected_products)
-    # 观察期：来自本地 PDF 数据的日期范围
-    obs = narrative.get("observation_period", "").strip()
+    # 观察期：优先使用 PDF 报告时间范围（observation_period.csv），与 start_time/end_time 一致
+    obs_file = PROCESSED_DIR / "observation_period.csv"
+    if obs_file.exists():
+        try:
+            obs_df = pd.read_csv(obs_file, encoding="utf-8")
+            if not obs_df.empty and "start_date" in obs_df.columns and "end_date" in obs_df.columns:
+                obs = f"{obs_df['start_date'].iloc[0]} 至 {obs_df['end_date'].iloc[0]}"
+            else:
+                obs = narrative.get("observation_period", "").strip()
+        except Exception:
+            obs = narrative.get("observation_period", "").strip()
+    else:
+        obs = narrative.get("observation_period", "").strip()
     if obs:
         st.info(f"**观察期**：{obs}")
     else:
-        st.caption("观察期：暂无日期数据（请确认已导入含日期的数据并选择对应产品线）")
+        st.caption("观察期：暂无日期数据（请先运行 scripts/clean_and_model.py 生成 observation_period.csv）")
     with st.expander("📌 核心结论（点击展开）", expanded=True):
         st.markdown(narrative["summary"])
 
