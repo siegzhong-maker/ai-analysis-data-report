@@ -383,6 +383,66 @@ def compute_status_tags(narrative):
     return scale, active, growth
 
 
+def summarize_feedback_text(text: str):
+    """
+    按主题对一段原始用户反馈文本进行粗粒度归纳，输出给管理层看的小结 bullet。
+    该函数不区分足球/篮球，调用方可按产品线分别传入对应文本。
+    """
+    if not text:
+        return []
+
+    t = text
+    points = []
+
+    # 视频体验相关
+    if any(k in t for k in ["自动生成的视频", "重复的片段", "画面变模糊", "进球会漏掉", "进球片段有时会漏掉", "上传时间过长", "上传时间过长或中断", "bgm", "BGM"]):
+        points.append("视频体验：需要提升自动集锦质量（去重、避免模糊/漏进球），并优化上传稳定性和 BGM 使用体验。")
+
+    # 场地标定 / 视角相关
+    if any(k in t for k in ["场地标定", "标定太复杂", "标注太复杂", "边界线", "重复定点", "2.4 米高度", "2.4米高度"]):
+        points.append("场地标定：部分用户认为标定流程偏复杂、边界线不够清晰，需要简化操作并优化标定指引。")
+
+    # 数据统计与维度相关
+    if any(k in t for k in ["个人数据统计", "数据维度", "数据太简单", "数据不太准确"]):
+        points.append("数据指标：用户期待更丰富、统一的个人与球队数据维度，同时提升数据准确性。")
+
+    # 使用方式 / 价格相关
+    if any(k in t for k in ["网页端", "⽹⻚端", "价格下调", "价格有所下调", "集锦 & 数据", "集锦&数据", "愿意付费"]):
+        points.append("使用方式与价格：用户希望有网页端查看 AI 分析结果，并对集锦+数据的价格水平提出了调整诉求。")
+
+    return points
+
+
+def summarize_feedback_block(text_block):
+    """
+    根据一段用户反馈文本提炼主题小结，并返回归一化后的原文（将项目符号统一为 Markdown 列表）。
+    """
+    if not text_block or not text_block.strip():
+        return [], ""
+
+    t = text_block
+    summary_points = []
+
+    # 视频体验相关
+    if any(k in t for k in ["自动生成的视频", "重复的片段", "画面变模糊", "进球会漏掉", "上传时间过长", "上传时间过长或中断", "bgm", "BGM"]):
+        summary_points.append("视频体验：用户希望提升自动集锦质量（去重、避免模糊/漏进球），并支持插入或调整 BGM，上传过程更稳定、耗时更短。")
+
+    # 场地标定 / 视角相关
+    if any(k in t for k in ["场地标定", "标定太复杂", "标注太复杂", "边界线", "重复定点", "2.4米高度", "2.4 米高度"]):
+        summary_points.append("场地标定：有用户认为标定流程偏复杂，边界线不够清晰，需要简化操作或优化标定指引。")
+
+    # 数据统计与维度相关
+    if any(k in t for k in ["个人数据统计", "数据维度", "数据太简单", "数据不太准确"]):
+        summary_points.append("数据指标：用户希望看到更丰富、统一的个人与球队数据维度，并提升数据准确性。")
+
+    # 使用方式 / 价格相关
+    if any(k in t for k in ["网页端", "⽹⻚端", "价格下调", "集锦&数据", "集锦 & 数据", "愿意付费"]):
+        summary_points.append("使用方式与价格：用户希望有网页端可以直接查看 AI 分析结果，对集锦+数据的付费意愿与价格区间也给出了反馈。")
+
+    normalized = text_block.replace("•", "-").replace("·", "-")
+    return summary_points, normalized
+
+
 def main():
     st.set_page_config(page_title="AI 分析看板", layout="wide")
     st.title("AI 篮球 / 足球分析看板")
@@ -678,12 +738,61 @@ def main():
 
     feedback_path = PROCESSED_DIR / "insights_feedback.txt"
     if feedback_path.exists():
-        with st.expander("用户反馈与分析备注（给分析/产品看）", expanded=view_mode != "管理层汇总视图"):
-            st.caption("用于还原用户主观反馈和分析备注，支撑对数据的定性判断。")
+        with st.expander("用户反馈与分析备注（按足篮分类）", expanded=view_mode != "管理层汇总视图"):
+            st.caption("用于还原用户主观反馈和分析备注，并按「足球 / 篮球」拆分，支撑对不同线条的产品判断。")
             try:
                 text = feedback_path.read_text(encoding="utf-8")
                 if text.strip():
-                    st.markdown(text.strip())
+                    # 简单按行解析，将反馈划分为「足球」「篮球」两部分
+                    lines = text.splitlines()
+                    soccer_lines = []
+                    basketball_lines = []
+                    current = None
+                    for line in lines:
+                        stripped = line.strip()
+                        if not stripped:
+                            # 空行：直接跟随当前 section
+                            if current == "soccer":
+                                soccer_lines.append(line)
+                            elif current == "basketball":
+                                basketball_lines.append(line)
+                            continue
+
+                        if "足球" in stripped or "⾜球" in stripped:
+                            current = "soccer"
+                            soccer_lines.append(line)
+                            continue
+                        if "篮球" in stripped:
+                            current = "basketball"
+                            basketball_lines.append(line)
+                            continue
+
+                        if current == "soccer":
+                            soccer_lines.append(line)
+                        elif current == "basketball":
+                            basketball_lines.append(line)
+
+                    soccer_text = "\n".join(soccer_lines).strip()
+                    basketball_text = "\n".join(basketball_lines).strip()
+
+                    col_soccer, col_basketball = st.columns(2)
+
+                    if soccer_text:
+                        with col_soccer:
+                            st.markdown("**足球 AI 分析用户反馈**")
+                            # 仅保留原始反馈内容，将项目符号统一为 Markdown 列表，便于阅读
+                            normalized_soccer = soccer_text.replace("•", "-").replace("·", "-")
+                            st.markdown(normalized_soccer)
+
+                    if basketball_text:
+                        with col_basketball:
+                            st.markdown("**篮球 AI 分析用户反馈**")
+                            # 仅保留原始反馈内容，将项目符号统一为 Markdown 列表，便于阅读
+                            normalized_basketball = basketball_text.replace("•", "-").replace("·", "-")
+                            st.markdown(normalized_basketball)
+
+                    if not soccer_text and not basketball_text:
+                        st.caption("当前暂无按足/篮拆分的反馈内容，请补充 insights_feedback.txt。")
                 else:
                     st.caption("暂无内容")
             except Exception as e:
