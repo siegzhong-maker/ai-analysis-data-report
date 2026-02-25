@@ -23,9 +23,10 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-# PDF filename patterns: 1-AI篮球... / 2-AI足球...
+# PDF filename patterns: 1-AI篮球... / 2-AI足球... / 足篮球复盘
 BASKETBALL_PATTERN = re.compile(r"1-.*[Bb]asketball.*\.pdf$", re.I)
 SOCCER_PATTERN = re.compile(r"2-.*[Ss]occer.*\.pdf$", re.I)
+RECAP_PATTERN = re.compile(r"足篮球.*复盘\.pdf$", re.I)
 
 
 def detect_product_line(filename: str) -> str | None:
@@ -33,6 +34,8 @@ def detect_product_line(filename: str) -> str | None:
         return "篮球"
     if SOCCER_PATTERN.search(filename):
         return "足球"
+    if RECAP_PATTERN.search(filename):
+        return "复盘"
     return None
 
 

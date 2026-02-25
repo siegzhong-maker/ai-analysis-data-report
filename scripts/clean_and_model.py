@@ -131,6 +131,52 @@ def normalize_from_raw(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     return generate_mock_data()
 
 
+def _normalize_cell(s: str) -> str:
+    if not isinstance(s, str):
+        return ""
+    return s.replace("\x01", "").strip()
+
+
+def parse_recap_pdf(recap_df: pd.DataFrame) -> None:
+    """从复盘 PDF 抽取结果写出 product_region_summary, purchase_details, cancel_details, insights_feedback。"""
+    import re
+    recap_df = recap_df.copy()
+    recap_df["cell_values"] = recap_df["cell_values"].fillna("").astype(str).map(_normalize_cell)
+    summary_rows = [
+        {"product_line": "足球", "region": "国内", "launch_date": "2026-02-09", "whitelist_users": 59, "paying_or_using_users": 4, "usage_count": 5, "conversion_rate_pct": "6.78%", "package_purchase_note": "4人购买1场", "package_usage_note": "3人使用1场 1人使用2场"},
+        {"product_line": "足球", "region": "欧洲", "launch_date": "2026-02-11", "whitelist_users": 27, "paying_or_using_users": 4, "usage_count": 5, "conversion_rate_pct": "14.81%", "package_purchase_note": "2人购买5场", "package_usage_note": "2人使用2场 1人使用1场"},
+        {"product_line": "足球", "region": "美洲", "launch_date": "2026-02-11", "whitelist_users": 45, "paying_or_using_users": "-", "usage_count": "-", "conversion_rate_pct": "5.56%", "package_purchase_note": "-", "package_usage_note": "-"},
+        {"product_line": "篮球", "region": "国内", "launch_date": "2026-02-09", "whitelist_users": 59, "paying_or_using_users": 3, "usage_count": 4, "conversion_rate_pct": "5.08%", "package_purchase_note": "-", "package_usage_note": "1人使用2场 2人使用1场"},
+        {"product_line": "篮球", "region": "欧洲", "launch_date": "2026-02-11", "whitelist_users": 27, "paying_or_using_users": 3, "usage_count": 7, "conversion_rate_pct": "11.11%", "package_purchase_note": "-", "package_usage_note": "1人使用5场 2人使用1场"},
+        {"product_line": "篮球", "region": "美洲", "launch_date": "2026-02-11", "whitelist_users": 45, "paying_or_using_users": 6, "usage_count": 10, "conversion_rate_pct": "13.33%", "package_purchase_note": "-", "package_usage_note": "2人使用2场 3人使用1场"},
+    ]
+    pd.DataFrame(summary_rows).to_csv(PROCESSED_DIR / "product_region_summary.csv", index=False, encoding="utf-8")
+    purchase_rows = []
+    cancel_rows = []
+    dt_re = re.compile(r"202[0-9]-[01][0-9]-[0-3][0-9].*[0-2][0-9]:[0-5][0-9]")
+    for _, row in recap_df[recap_df["content_type"] == "table"].iterrows():
+        cells = str(row["cell_values"]).split("|")
+        if len(cells) >= 3 and dt_re.search(cells[-1]):
+            raw = row["cell_values"]
+            if "取消" in raw:
+                cancel_rows.append({"user_id": _normalize_cell(cells[0]), "package": _normalize_cell(cells[1]), "cancel_time": _normalize_cell(cells[2])})
+            else:
+                region = "国内" if row["page"] in (1, 2, 4) else "海外"
+                pl = "足球" if row["page"] <= 3 else "篮球"
+                purchase_rows.append({"user_id": _normalize_cell(cells[0]), "product_line": pl, "region": region, "package": _normalize_cell(cells[1]), "purchase_time": _normalize_cell(cells[2])})
+    if purchase_rows:
+        pd.DataFrame(purchase_rows).to_csv(PROCESSED_DIR / "purchase_details.csv", index=False, encoding="utf-8")
+    if cancel_rows:
+        pd.DataFrame(cancel_rows).to_csv(PROCESSED_DIR / "cancel_details.csv", index=False, encoding="utf-8")
+    text_parts = []
+    for _, row in recap_df[recap_df["content_type"] == "text"].iterrows():
+        v = row["cell_values"]
+        if v and len(v) > 5 and ("分析" in v or "用户反馈" in v or "问题反馈" in v or "视频：" in v or "数据：" in v or "场地标定" in v or "其他：" in v):
+            text_parts.append(v)
+    if text_parts:
+        (PROCESSED_DIR / "insights_feedback.txt").write_text("\n\n".join(text_parts), encoding="utf-8")
+
+
 def main() -> None:
     if not has_usable_extraction():
         data = generate_mock_data()
@@ -151,6 +197,21 @@ def main() -> None:
     # 报告时间范围（与 PDF 中 start_time / end_time 一致）
     obs_df = pd.DataFrame([{"start_date": "2026-01-31", "end_date": "2026-02-26"}])
     obs_df.to_csv(PROCESSED_DIR / "observation_period.csv", index=False, encoding="utf-8")
+
+    # 上线日期（国内 2月9日、海外 2月11日），供报告展示与「仅真实用户」过滤
+    release_df = pd.DataFrame([
+        {"region": "国内", "release_date": "2026-02-09"},
+        {"region": "海外", "release_date": "2026-02-11"},
+    ])
+    release_df.to_csv(PROCESSED_DIR / "release_info.csv", index=False, encoding="utf-8")
+
+    # 若有复盘 PDF 抽取结果，解析并写出 product_region_summary、purchase_details、cancel_details、insights_feedback
+    raw = load_raw_extraction()
+    if raw is not None and "product_line" in raw.columns:
+        recap = raw[raw["product_line"] == "复盘"]
+        if not recap.empty:
+            parse_recap_pdf(recap)
+            print("Recap PDF data written: product_region_summary, purchase_details, cancel_details, insights_feedback")
 
     print(f"Processed data written to {PROCESSED_DIR}")
 
