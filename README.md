@@ -2,6 +2,9 @@
 
 基于根目录下多份 **AI 篮球分析看板**、**AI 足球分析看板** PDF 的数据分析项目，提供**定性 + 定量**分析看板。
 
+**在线看板（可分享给同事）：**  
+[https://ai-analysis-data-report-ujbyg6ywvtvxpsb26rp5jz.streamlit.app/](https://ai-analysis-data-report-ujbyg6ywvtvxpsb26rp5jz.streamlit.app/)
+
 ## 功能概览
 
 - **定量分析**：使用总用户量（KPI）、功能使用高峰（近7天 / 近48小时）、每日使用次数（三线）、每日新增用户。
@@ -66,7 +69,8 @@ python3 -m streamlit run app.py
 │   └── config.toml          # 看板主题与服务器配置（Cloud 部署时会用到）
 ├── scripts/
 │   ├── extract_pdf_data.py   # PDF 数据抽取
-│   └── clean_and_model.py   # 清洗与建模（含模拟数据逻辑）
+│   ├── clean_and_model.py   # 清洗与建模（含模拟数据逻辑）
+│   └── update_data.py       # 一键更新：抽取 + 清洗
 ├── data/
 │   ├── raw/                  # 抽取原始结果
 │   └── processed/            # 分析就绪数据（供看板使用，需提交以便 Cloud 展示）
@@ -80,6 +84,57 @@ python3 -m streamlit run app.py
 - **数据来源**：根目录下 `1-AI篮球分析看板*.pdf`、`2-AI足球分析看板*.pdf`。  
 - 若 PDF 为图表截图（无嵌入表格/文字），抽取脚本会记录“无可用抽取”，清洗脚本将生成**模拟数据**，便于先跑通看板与迭代指标。  
 - 数据更新时间：每次成功执行 `clean_and_model.py` 会覆盖 `data/processed/` 下文件。
+
+## 如何更新数据（基于根目录 PDF）
+
+看板展示的数据来自 `data/processed/` 下的 CSV。当根目录里的 PDF 有更新（或换了新一批看板导出）时，按下面流程刷新即可。
+
+### 1. 更新 PDF
+
+- 把新的或替换后的 **AI 篮球 / 足球分析看板 PDF** 放到项目**根目录**。
+- 文件名需符合：`1-AI篮球分析看板*.pdf`、`2-AI足球分析看板*.pdf`（或含 Basketball / Soccer 的对应英文），脚本会按前缀区分篮球 / 足球。
+
+### 2. 重新抽取 + 清洗
+
+在项目根目录执行（二选一）：
+
+**方式 A：分两步执行**
+
+```bash
+cd "/Users/silas/Desktop/AI data analysis"
+python3 scripts/extract_pdf_data.py    # 从 PDF 抽取 → data/raw/
+python3 scripts/clean_and_model.py     # 清洗/建模 → data/processed/
+```
+
+**方式 B：一键执行**（推荐）
+
+```bash
+cd "/Users/silas/Desktop/AI data analysis"
+python3 scripts/update_data.py
+```
+
+`update_data.py` 会依次调用上述两个脚本，跑完即得到最新的 `data/processed/`。
+
+### 3. 本地看板
+
+若在本机用 `python3 -m streamlit run app.py` 看板，刷新浏览器即可看到新数据（Streamlit 会重新读 CSV）。
+
+### 4. Streamlit Cloud 看板
+
+若看板已部署在 [share.streamlit.io](https://share.streamlit.io)：
+
+```bash
+git add data/processed/
+git commit -m "更新看板数据"
+git push
+```
+
+推送后到 Streamlit Cloud 该应用页面点击 **Reboot app**（或等自动重新部署），线上看板会显示新数据。
+
+### 说明
+
+- **当前 PDF 多为图表/图片**：若 `extract_pdf_data.py` 抽不到表格或文字，会生成 `data/raw/extraction_marker.txt`，`clean_and_model.py` 会据此生成与看板结构一致的**模拟数据**，看板仍可正常展示。
+- **若有导出的 CSV**：若能从报表系统或 BI 工具导出「总用户量、近7天高峰、近48小时、每日使用、每日新增」等 CSV，可按当前 `data/processed/` 下各文件的字段名与格式，直接覆盖对应 CSV，再执行上面第 3 或 4 步即可，无需再跑 PDF 抽取。
 
 ## 常见问题
 
@@ -108,6 +163,24 @@ git push -u origin main
 若仓库已有内容，可直接 `git add .`、`git commit -m "..."`、`git push`。  
 注意：`data/processed/` 需一并提交，看板才能在线显示数据；`.gitignore` 已排除 `*.pdf` 和 `.snapshots`，其余会正常提交。
 
+**若 push 报错连到 ghproxy 超时**：说明本机 Git 把 GitHub 地址重写成了代理（`ghproxy.com`），代理连不上时会失败。任选一种方式即可：
+
+- **改回直连 GitHub 再 push**（推荐）：  
+  ```bash
+  git remote set-url origin https://github.com/siegzhong-maker/ai-analysis-data-report.git
+  git config --global --unset url.https://ghproxy.com/https://github.com/.insteadof
+  git push -u origin main
+  ```  
+  之后若需继续用代理访问别的仓库，可再执行：  
+  `git config --global url."https://ghproxy.com/https://github.com/.insteadOf" "https://github.com/"`
+
+- **或用 SSH 推送**（不走代理）：  
+  ```bash
+  git remote set-url origin git@github.com:siegzhong-maker/ai-analysis-data-report.git
+  git push -u origin main
+  ```  
+  需先在 GitHub 添加 SSH 公钥（Settings → SSH and GPG keys）。
+
 ### 步骤 2：在 Streamlit Cloud 部署
 
 1. 打开 **[share.streamlit.io](https://share.streamlit.io)**，用 **GitHub 账号登录**。
@@ -121,7 +194,10 @@ git push -u origin main
 
 ### 步骤 3：分享给团队
 
-把上一步得到的 **应用地址** 发给同事，对方在浏览器打开即可查看看板，无需安装 Python 或运行任何命令。
+把下面**在线看板链接**发给同事，对方在浏览器打开即可查看看板，无需安装 Python 或运行任何命令。
+
+**看板地址：**  
+[https://ai-analysis-data-report-ujbyg6ywvtvxpsb26rp5jz.streamlit.app/](https://ai-analysis-data-report-ujbyg6ywvtvxpsb26rp5jz.streamlit.app/)
 
 ### 后续更新数据或代码
 
