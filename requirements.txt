@@ -1,0 +1,13 @@
+# PDF parsing
+pdfplumber>=0.10.0
+
+# Data processing
+pandas>=2.0.0
+
+# Dashboard
+streamlit>=1.28.0
+plotly>=5.18.0
+
+# Optional: OCR if PDFs are image-based (uncomment if needed)
+# pytesseract>=0.3.10
+# pdf2image>=1.16.0

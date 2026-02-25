@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.so
+.venv/
+venv/
+ENV/
+
+# Env and secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project: large PDFs (place your PDFs in root when running locally)
+*.pdf
+
+# Optional: uncomment to exclude raw extraction output (regeneratable)
+# data/raw/
+
+# Snapshots extension (Cursor/VS Code)
+.snapshots/
