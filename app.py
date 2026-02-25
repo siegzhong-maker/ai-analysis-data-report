@@ -205,10 +205,7 @@ def main():
 
     # ----- Data source -----
     st.divider()
-    source_note = PROCESSED_DIR / "source_note.txt"
-    if source_note.exists():
-        st.caption("数据说明: " + source_note.read_text(encoding="utf-8"))
-    st.caption("数据来源：根目录 AI 篮球/足球分析看板 PDF，可直接下载查看。")
+    st.caption("数据来源：根目录 AI 篮球/足球分析看板 PDF。")
 
 
 if __name__ == "__main__":
