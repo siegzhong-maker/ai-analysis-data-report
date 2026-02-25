@@ -4,7 +4,6 @@ AI Basketball / Soccer Analysis Dashboard — 用户行为与数据表现（定�
 Data source: data/processed/*.csv (from PDF extraction or mock).
 Run: streamlit run app.py
 """
-from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -103,33 +102,9 @@ def main():
 
     kpi, peak_7d, peak_48h, daily_usage, new_users = load_data()
 
-    # 从数据中取日期范围，用于默认观察期
-    all_dates = []
-    for df in [peak_7d, daily_usage, new_users]:
-        if not df.empty and "date" in df.columns:
-            for d in df["date"].dropna().astype(str):
-                try:
-                    all_dates.append(datetime.strptime(d[:10], "%Y-%m-%d").date())
-                except ValueError:
-                    pass
-    if all_dates:
-        default_start = min(all_dates)
-        default_end = max(all_dates)
-    else:
-        default_start = date(2026, 1, 31)
-        default_end = date(2026, 2, 26)
-
-    # Product line filter + 观察时间（与数据源 start_time / end_time 一致）
+    # Product line filter（报告来自本地 PDF 数据，无需侧栏时间选择）
     product_options = list(kpi["product_line"].unique())
     selected_products = st.sidebar.multiselect("产品线", product_options, default=product_options)
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**观察时间**")
-    start_time = st.sidebar.date_input("start_time *", value=default_start, key="start_time")
-    end_time = st.sidebar.date_input("end_time", value=default_end, key="end_time")
-    if start_time > end_time:
-        st.sidebar.warning("结束时间应不早于开始时间，已自动对调显示。")
-        start_time, end_time = end_time, start_time
-    observation_period_label = f"{start_time.strftime('%Y-%m-%d')} 至 {end_time.strftime('%Y-%m-%d')}"
 
     if not selected_products:
         st.warning("请至少选择一条产品线")
@@ -143,8 +118,12 @@ def main():
 
     # ----- 核心结论（叙事摘要）-----
     narrative = build_narrative(kpi_sel, peak_7d_sel, peak_48h_sel, daily_usage_sel, new_users_sel, selected_products)
-    # 观察期：使用侧栏的 start_time / end_time，与数据源口径一致
-    st.info(f"**观察期**：{observation_period_label}")
+    # 观察期：来自本地 PDF 数据的日期范围
+    obs = narrative.get("observation_period", "").strip()
+    if obs:
+        st.info(f"**观察期**：{obs}")
+    else:
+        st.caption("观察期：暂无日期数据（请确认已导入含日期的数据并选择对应产品线）")
     with st.expander("📌 核心结论（点击展开）", expanded=True):
         st.markdown(narrative["summary"])
 
